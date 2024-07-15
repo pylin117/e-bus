@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@quasar/extras": "^1.16.9",
+    "@types/jssha": "^3.0.0",
     "@types/lodash": "^4.17.0",
     "async-mutex": "^0.5.0",
     "axios": "^1.6.8",

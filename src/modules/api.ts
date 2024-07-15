@@ -1,13 +1,8 @@
 import axios, { type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
-import { envConfig } from '@/plugins/env'
-import { useUserStore } from '@/stores/user'
-import { EnumHttpStatusCode } from '@/common/models/enum'
 import { errorNotify } from '@/modules/notify'
 import router from '@/router'
 import { hideUiBlocker, resetUiBlockCounter, showUiBlocker } from '@/modules/apiExtensions'
 
-let isRefreshTokenInProgress = false
-const user = useUserStore()
 const api = axios.create()
 
 api.interceptors.request.use(
@@ -15,13 +10,10 @@ api.interceptors.request.use(
     const routeName: any = router.currentRoute?.value?.name
     showUiBlocker(routeName, config)
 
-    config.baseURL = `${envConfig.VUE_APP_HOST_BACKEND_URL}api/crm`
+    config.baseURL = '/api'
     config.timeout = 60000
     config.headers['Content-Type'] = 'application/json'
-
-    if (user.tokens.accessToken) {
-      config.headers.Authorization = `Bearer ${user.tokens.accessToken}`
-    }
+    config.withCredentials = true
 
     return config
   },
@@ -47,8 +39,7 @@ api.interceptors.response.use(
       return Promise.reject(httpErr) // Return original response
     }
 
-    const { config: originalRequest, response } = error
-    let isRefreshOk: boolean = false
+    const { config: response } = error
     let status: any
 
     if (!response) {
@@ -57,38 +48,6 @@ api.interceptors.response.use(
     } else {
       status = response.status
     }
-
-    if (status === EnumHttpStatusCode.INVALID_TOKEN) {
-      if (!isRefreshTokenInProgress) {
-        isRefreshTokenInProgress = true
-        isRefreshOk = await user.refreshToken()
-        isRefreshTokenInProgress = false
-      }
-
-      if (isRefreshOk) {
-        const res = await api(originalRequest)
-        const retryOriginalRequest = new Promise((resolve) => {
-          // DANGER: here will clean store
-          location.reload()
-          resolve(res)
-        })
-
-        return retryOriginalRequest
-      } else {
-        return Promise.reject(httpErr) // Return original response
-      }
-    } else if (status === EnumHttpStatusCode.TOKEN_ERROR) {
-      await user.logout()
-    } else {
-      if (status >= EnumHttpStatusCode.INTERNAL_SERVER_ERROR) {
-        errorNotify(
-          '唉唷! 不好意思，服務發生一些問題，請稍後再試! 若持續遇到，請透過右下角客服聯絡服務人員，將盡快為您處理。'
-        )
-      }
-
-      return Promise.reject(httpErr)
-    }
-
     return httpErr
   }
 )
